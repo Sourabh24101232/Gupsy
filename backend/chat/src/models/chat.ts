@@ -2,6 +2,7 @@ import mongoose, { Document, Schema } from "mongoose";
 
 //Define the TypeScript interface
 export interface IChat extends Document {
+  chatKey: string;
   users: string[];//This means every chat has an array of strings that includes users that are chatting 
   latestMessage: {
     text: string;
@@ -13,6 +14,12 @@ export interface IChat extends Document {
 
 const schema: Schema<IChat> = new Schema(
   {
+    chatKey: {
+      type: String,
+      required: true,
+      unique: true,
+      sparse: true,
+    },
     users: [{ type: String, required: true }],
 
     latestMessage: {

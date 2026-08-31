@@ -23,11 +23,17 @@ export const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     //fileFilter decides:"Should I accept this file or reject it?"Check whether the file is an image
-    if (file.mimetype.startsWith("image/")) {//Every uploaded file has a MIME type.file.mimetype.startsWith("image/") means "Is this file an image?"
-      cb(null, true);//Accept the file. 
-      cb(null, true);//Accept the file. 
-    } else {
-      cb(new Error("only image allowed"));//Reject non-images
+    // if (file.mimetype.startsWith("image/")) {//Every uploaded file has a MIME type.file.mimetype.startsWith("image/") means "Is this file an image?"
+    //   cb(null, true);//Accept the file.
+    //   cb(null, true);//Accept the file.
+    // } else {
+    //   cb(new Error("only image allowed"));//Reject non-images
+    // }
+
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+      return;
     }
+    cb(new Error("Only image files are allowed"));
   },
 });

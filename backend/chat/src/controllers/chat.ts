@@ -3,10 +3,16 @@ import type { AuthenticatedRequest } from "../middlewares/isAuth.js";
 import { Chat } from "../models/chat.js";
 import axios from "axios";
 import { Messages } from "../models/messages.js";
+import mongoose from "mongoose";
 
 export const createNewChat = TryCatch(
   async (req: AuthenticatedRequest, res) => {
     const userId = req.user?._id; //Get logged-in user's ID. And because the request is: AuthenticatedRequest,you can access:req.user
+
+    if (!userId) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
 
     const { otherUserId } = req.body; //otherUserId in body
     if (!otherUserId) {
@@ -16,27 +22,73 @@ export const createNewChat = TryCatch(
       return;
     }
 
-    //Find a chat containing both users and containing exactly two users.
-    //We're asking MongoDB: : "Do I already have a chat whose users array contains these two users and has exactly 2 users?"
-    const existingChat = await Chat.findOne({
-      users: { $all: [userId, otherUserId], $size: 2 },
-    });
-    //stops execution Because we don't want to create another chat between the same two users.
-    if (existingChat) {
-      res.json({
-        message: "Chat already exist",
-        chatId: existingChat._id,
+    if (
+      typeof otherUserId !== "string" ||
+      !mongoose.isValidObjectId(otherUserId) ||
+      otherUserId === userId.toString()
+    ) {
+      res.status(400).json({
+        message: "A different valid user ID is required",
       });
       return;
     }
 
-    const newChat = await Chat.create({
-      users: [userId, otherUserId],
-    });
+    try {
+      const { data: otherUser } = await axios.get(
+        `${process.env.USER_SERVICE}/api/v1/user/${otherUserId}`,
+      );
 
+      if (!otherUser) {
+        res.status(404).json({ message: "Other user not found" });
+        return;
+      }
+    } catch {
+      res.status(404).json({ message: "Other user not found" });
+      return;
+    }
+
+    //Find a chat containing both users and containing exactly two users.
+    //We're asking MongoDB: : "Do I already have a chat whose users array contains these two users and has exactly 2 users?"
+    // const existingChat = await Chat.findOne({
+    //   users: { $all: [userId, otherUserId], $size: 2 },
+    // });
+    const legacyChat = await Chat.findOne({
+      users: { $all: [userId, otherUserId], $size: 2 },
+    });
+    //stops execution Because we don't want to create another chat between the same two users.
+    // if (existingChat) {
+    //   res.json({
+    //     message: "Chat already exist",
+    //     chatId: existingChat._id,
+    //   });
+    //   return;
+    // }
+    if (legacyChat) {
+      res.json({
+        message: "Chat already exists",
+        chatId: legacyChat._id,
+      });
+      return;
+    }
+
+    // const newChat = await Chat.create({
+    //   users: [userId, otherUserId],
+    // });
+    const users = [userId.toString(), otherUserId].sort();
+    const chatKey = users.join(":");
+    const chat = await Chat.findOneAndUpdate(
+      { chatKey },
+      { $setOnInsert: { chatKey, users } },
+      { new: true, upsert: true },
+    );
+
+    // res.status(201).json({
+    //   message: "New Chat created",
+    //   chatId: newChat._id,
+    // });
     res.status(201).json({
-      message: "New Chat created",
-      chatId: newChat._id,
+      message: "Chat ready",
+      chatId: chat._id,
     });
   },
 );
@@ -70,15 +122,22 @@ export const getAllChats = TryCatch(async (req: AuthenticatedRequest, res) => {
   }
 
   //Find all chats belonging to the logged in user
-  const chats = await Chat.find({
-    users: userId,
-  }).sort({ updatedAt: -1 }); //latest updated chat first.
+  // const chats = await Chat.find({
+  //   users: userId,
+  // }).sort({ updatedAt: -1 }); //latest updated chat first.
+  const page = Math.max(Number(req.query.page) || 1, 1);
+  const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+  const skip = (page - 1) * limit;
+  const [chats, total] = await Promise.all([
+    Chat.find({ users: userId }).sort({ updatedAt: -1 }).skip(skip).limit(limit),
+    Chat.countDocuments({ users: userId }),
+  ]);
 
   const chatWithUserData = await Promise.all(
     //Process every chat of logged in user
     chats.map(async (chat) => {
       //finds the other user in each chat,
-      const otherUserId = chat.users.find((id) => id !== userId);
+      const otherUserId = chat.users.find((id) => id !== userId.toString());
       //counts their unseen messages
       const unseenCount = await Messages.countDocuments({
         chatId: chat._id,
@@ -122,6 +181,10 @@ export const getAllChats = TryCatch(async (req: AuthenticatedRequest, res) => {
 
   res.json({
     chats: chatWithUserData, //Return all chats to frontend
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
   });
 });
 
@@ -140,6 +203,11 @@ export const sendMessage = TryCatch(async (req: AuthenticatedRequest, res) => {
     res.status(400).json({
       message: "ChatId Required",
     });
+    return;
+  }
+
+  if (!mongoose.isValidObjectId(chatId)) {
+    res.status(400).json({ message: "Invalid chat ID" });
     return;
   }
   if (!text && !imageFile) {
@@ -226,7 +294,6 @@ export const sendMessage = TryCatch(async (req: AuthenticatedRequest, res) => {
 //This function is used to get all messages of a particular chat.
 export const getMessagesByChat = TryCatch(
   async (req: AuthenticatedRequest, res) => {
-
     //Check logged-in user
     const userId = req.user?._id;
     if (!userId) {
@@ -237,7 +304,8 @@ export const getMessagesByChat = TryCatch(
     }
 
     //Check chatId
-    const { chatId } = req.body;
+    // const { chatId } = req.body;
+    const { chatId } = req.params;
     if (!chatId) {
       res.status(400).json({
         message: "ChatId Required",
@@ -246,6 +314,11 @@ export const getMessagesByChat = TryCatch(
     }
 
     //Find chat
+    if (!mongoose.isValidObjectId(chatId)) {
+      res.status(400).json({ message: "Invalid chat ID" });
+      return;
+    }
+
     const chat = await Chat.findById(chatId);
     if (!chat) {
       res.status(404).json({
@@ -255,8 +328,11 @@ export const getMessagesByChat = TryCatch(
     }
 
     //Check user belongs to chat
+    // const isUserInChat = chat.users.some(
+    //   (userId) => userId.toString() === userId.toString(),
+    // );
     const isUserInChat = chat.users.some(
-      (userId) => userId.toString() === userId.toString(),
+      (participantId) => participantId.toString() === userId.toString(),
     );
     if (!isUserInChat) {
       res.status(403).json({
@@ -266,11 +342,11 @@ export const getMessagesByChat = TryCatch(
     }
 
     //Mark received messages as seen
-    const messagesToMarkSeen = await Messages.find({
-      chatId: chatId,
-      sender: { $ne: userId },
-      seen: false,
-    });
+    // const messagesToMarkSeen = await Messages.find({
+    //   chatId: chatId,
+    //   sender: { $ne: userId },
+    //   seen: false,
+    // });
 
     await Messages.updateMany(
       {
@@ -285,9 +361,16 @@ export const getMessagesByChat = TryCatch(
     );
 
     //Get all messages
-    const messages = await Messages.find({ chatId }).sort({
-      createdAt: 1,
-    });
+    // const messages = await Messages.find({ chatId }).sort({
+    //   createdAt: 1,
+    // });
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+    const skip = (page - 1) * limit;
+    const [messages, total] = await Promise.all([
+      Messages.find({ chatId }).sort({ createdAt: 1 }).skip(skip).limit(limit),
+      Messages.countDocuments({ chatId }),
+    ]);
 
     //Find the other user
     const otherUserId = chat.users.find(
@@ -311,6 +394,10 @@ export const getMessagesByChat = TryCatch(
       console.log(error);
       res.json({
         messages,
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
         user: {
           _id: otherUserId,
           name: "Unknown User",
@@ -324,6 +411,10 @@ export const getMessagesByChat = TryCatch(
     //Send messages + user details
     res.json({
       messages,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
       user: data,
     });
   },

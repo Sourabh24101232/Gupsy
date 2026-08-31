@@ -7,9 +7,19 @@ import { redisClient } from "../index.js";
 import { User } from "../model/User.js";
 import { generateToken } from "../config/generateToken.js";
 import type { AuthenticatedRequest } from "../middleware/isAuth.js";
+import { randomInt } from "node:crypto";
+import mongoose from "mongoose";
 
 export const loginUser = TryCatch(async (req, res) => {
-  const { email } = req.body;
+  // const { email } = req.body;
+  const email = typeof req.body.email === "string"? req.body.email.trim().toLowerCase(): "";
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    res.status(400).json({
+      message: "A valid email address is required",
+    });
+    return;
+  }
 
   //rateLimitKey Creates a unique Redis key for this user's OTP requests.This allows Redis to track the OTP request limit separately for each email.
   const rateLimitKey = `otp:ratelimit:${email}`;
@@ -23,7 +33,8 @@ export const loginUser = TryCatch(async (req, res) => {
   }
 
   //generate otp
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  // const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otp = randomInt(100000, 1000000).toString();
   //Creates a unique key for storing this user's OTP. otpKey = "otp:user@gmail.com" It is simply a unique identifier/key telling Redis: "The OTP belonging to user@gmail.com is stored here."
   const otpKey = `otp:${email}`;
   //Store otp in Redis
@@ -56,10 +67,13 @@ export const loginUser = TryCatch(async (req, res) => {
 
 //user verification after sending otp
 export const verifyUser = TryCatch(async (req, res) => {
-  const { email, otp: enteredOtp } = req.body;
+  // const { email, otp: enteredOtp } = req.body;
+  const email = typeof req.body.email === "string"? req.body.email.trim().toLowerCase(): "";
+  const enteredOtp =typeof req.body.otp === "string" ? req.body.otp.trim() : "";
 
   // Check whether email and OTP are provided
-  if (!email || !enteredOtp) {
+  // if (!email || !enteredOtp) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{6}$/.test(enteredOtp)) {
     res.status(400).json({
       message: "Email and OTP Required",
     });
@@ -106,14 +120,21 @@ export const verifyUser = TryCatch(async (req, res) => {
 
 //fetch my profile
 export const myProfile = TryCatch(async (req: AuthenticatedRequest, res) => {
-  const user = req.user;
+  // const user = req.user;
+  const user = await User.findById(req.user?._id);
+
+  if (!user) {
+    res.status(404).json({
+      message: "User not found",
+    });
+    return;
+  }
 
   res.json(user);
 });
 
 //update name of user
 export const updateName = TryCatch(async (req: AuthenticatedRequest, res) => {
-
   const user = await User.findById(req.user?._id);
   if (!user) {
     res.status(404).json({
@@ -121,8 +142,8 @@ export const updateName = TryCatch(async (req: AuthenticatedRequest, res) => {
     });
     return;
   }
-  
-  //update and save 
+
+  //update and save
   user.name = req.body.name;
   await user.save();
 
@@ -136,19 +157,50 @@ export const updateName = TryCatch(async (req: AuthenticatedRequest, res) => {
 });
 
 //get all users
-export const getAllUsers = TryCatch(
-  async (req: AuthenticatedRequest, res) => {
-    const users = await User.find();
+export const getAllUsers = TryCatch(async (req: AuthenticatedRequest, res) => {
+  // const users = await User.find();
+  const page = Math.max(Number(req.query.page) || 1, 1);
+  const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+  const skip = (page - 1) * limit;
 
-    res.json(users);
-  }
-);
+  const [users, total] = await Promise.all([
+    User.find().skip(skip).limit(limit),
+    User.countDocuments(),
+  ]);
 
-//get a patcicular user
-export const getAUser = TryCatch(async (req, res) => {
-  const user = await User.findById(req.params.id);
-  res.json(user);
+  // res.json(users);
+  res.json({
+    users,
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
+  });
 });
 
+//get a patcicular user
+// export const getAUser = TryCatch(async (req, res) => {
+//   const user = await User.findById(req.params.id);
+//   res.json(user);
+// });
+export const getAUser = TryCatch(async (req, res) => {
+  const { id } = req.params;
 
+  if (!mongoose.isValidObjectId(id)) {
+    res.status(400).json({
+      message: "Invalid user ID",
+    });
+    return;
+  }
 
+  const user = await User.findById(id);
+
+  if (!user) {
+    res.status(404).json({
+      message: "User not found",
+    });
+    return;
+  }
+
+  res.json(user);
+});

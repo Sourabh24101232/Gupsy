@@ -27,7 +27,9 @@ export const connectRabbitMQ = async () => {
 
     console.log("✅ connected to rabbitmq");
   } catch (error) {
-    console.log("❌ Failed to connect to rabbitmq", error);
+    // console.log("❌ Failed to connect to rabbitmq", error);
+    console.error("❌ Failed to connect to RabbitMQ", error);
+    throw error;
   }
 };
 
@@ -35,19 +37,22 @@ export const connectRabbitMQ = async () => {
 // Its job is simple: Take a JavaScript/TypeScript message → convert it to bytes → put it into a RabbitMQ queue.
 export const publishToQueue = async (queueName: string, message: any) => {
   //channel is the object through which you're communicating with RabbitMQ.
+  // if (!channel) {
+  //   console.log("RabbitMQ channel is not initialized");
+  //   return;
+  // }
   if (!channel) {
-    console.log("RabbitMQ channel is not initialized");
-    return;
+    throw new Error("RabbitMQ channel is not initialized");
   }
-  
+
   //"Make sure this queue exists. If it doesn't exist, create it."
   await channel.assertQueue(queueName, {
     durable: true,
   });
-  
+
   //Initially message is a JavaScript object. Convert the message to JSON
   channel.sendToQueue(queueName, Buffer.from(JSON.stringify(message)), {
-    persistent: true,//his tells RabbitMQ to mark the message as persistent.
+    persistent: true, //his tells RabbitMQ to mark the message as persistent.
   });
 };
 
@@ -58,7 +63,6 @@ export const publishToQueue = async (queueName: string, message: any) => {
 //     userId: 123,
 //     name: "Sourabh"
 // });
-
 
 // What does durable: true mean?
 // durable: true means the queue should survive a RabbitMQ server restart.
@@ -73,9 +77,8 @@ export const publishToQueue = async (queueName: string, message: any) => {
 //         ↓
 // Queue remains
 
-// Buffer.from(...) 
+// Buffer.from(...)
 // converts that string into a Node.js Buffer.
-
 
 // Queue
 //  └── durable: true
@@ -86,9 +89,6 @@ export const publishToQueue = async (queueName: string, message: any) => {
 //  └── persistent: true
 //        ↓
 //        RabbitMQ should persist the message
-
-
-
 
 // 1. assertQueue()
 //    → Make sure queue exists.

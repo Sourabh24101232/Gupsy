@@ -1,7 +1,6 @@
 //This code is a RabbitMQ consumer whose job is to receive OTP email requests from a queue and send those emails using Gmail SMTP.
 
-
-import amqp from "amqplib";//amqplib allows Node.js to communicate with RabbitMQ.
+import amqp from "amqplib"; //amqplib allows Node.js to communicate with RabbitMQ.
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 
@@ -10,7 +9,6 @@ dotenv.config();
 //Create the consumer function
 export const startSendOtpConsumer = async () => {
   try {
-
     //Read RabbitMQ configuration
     const host = process.env.Rabbitmq_Host;
     const username = process.env.Rabbitmq_User;
@@ -42,16 +40,24 @@ export const startSendOtpConsumer = async () => {
     channel.consume(queueName, async (msg) => {
       if (msg) {
         try {
-
           //msg.content: RabbitMQ gives the message content as a Buffer.
           //msg.content.toString(): Convert Buffer to string
           //JSON.parse(...) : This converts the JSON string into a JavaScript object.
-          const { to, subject, body } = JSON.parse(msg.content.toString());//t0--> user@gmail.com, subject → Your OTP,body    → Your OTP is 123456
+          const { to, subject, body } = JSON.parse(msg.content.toString()); //t0--> user@gmail.com, subject → Your OTP,body    → Your OTP is 123456
 
           //A transporter is basically the object Nodemailer uses to communicate with the email server.
+          // const transporter = nodemailer.createTransport({
+          //   host: "smtp.gmail.com",
+          //   port: 465,
+          //   auth: {
+          //     user: process.env.USER,
+          //     pass: process.env.PASSWORD,
+          //   },
+          // });
           const transporter = nodemailer.createTransport({
             host: "smtp.gmail.com",
             port: 465,
+            secure: true,
             auth: {
               user: process.env.USER,
               pass: process.env.PASSWORD,
@@ -71,7 +77,12 @@ export const startSendOtpConsumer = async () => {
           //You are telling RabbitMQ: I successfully processed this message. You can remove it from the queue.
           channel.ack(msg);
         } catch (err) {
-          console.log("Failed to send OTP", err);
+          // console.log("Failed to send OTP", err);
+          console.error("Failed to send OTP", err);
+
+          // Reject it instead of leaving it unacknowledged forever.
+          // `false` means do not immediately retry the same failing message.
+          channel.nack(msg, false, false);
         }
       }
     });

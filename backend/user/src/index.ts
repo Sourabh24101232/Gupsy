@@ -8,8 +8,24 @@ import { connectRabbitMQ } from "./config/rabbitmq.js";
 import cors from "cors";
 
 dotenv.config(); //to read variables from .env
-connectDb();
 
+const requiredEnv = [
+  "PORT",
+  "MONGO_URI",
+  "JWT_SECRET",
+  "REDIS_URL",
+  "Rabbitmq_Host",
+  "Rabbitmq_User",
+  "Rabbitmq_Password",
+];
+
+for (const key of requiredEnv) {
+  if (!process.env[key]) {
+    throw new Error(`${key} is not defined`);
+  }
+}
+
+connectDb();
 connectRabbitMQ();
 
 //redis connection
