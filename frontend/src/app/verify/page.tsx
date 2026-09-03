@@ -3,15 +3,15 @@
 import { ArrowRight, ChevronLeft, Loader2, Lock } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
-import Cookies from "js-cookie";
-import axios from "axios";
+import Cookies from "js-cookie"; //Used to create/read browser cookies.This component uses it to save the authentication token.
+import axios from "axios"; //Axios is used to make HTTP requests to your backend.
 
 const VerifyPage = () => {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); //Stores whether OTP verification is currently happening.The button changes from: Verify → Verifying...
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]); //otp is an array of string
   const [error, setError] = useState<string>("");
   const [resendLoading, setResendLoading] = useState(false);
-  const [timer, setTimer] = useState(60);
+  const [timer, setTimer] = useState(60); //Stores the resend countdown.While timer > 0:Resend code in 42s  , When it reaches 0: "Resend Code" button becomes available.
 
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const router = useRouter();
@@ -22,44 +22,55 @@ const VerifyPage = () => {
   const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const otpString = otp.join("");
-
+    const otpString = otp.join(""); //Convert OTP array into a string . otp = ["4", "7", "2", "9", "1", "8"] converted into "472918"
     if (otpString.length !== 6) {
       setError("Please enter all 6 digits");
       return;
     }
 
-    setError("");
-    setLoading(true);
+    setError(""); //First remove any old error.
+    setLoading(true); //Verification request has started.So the button can show: Verifying...
 
     try {
+      //Send OTP to backend. So your frontend is basically saying: Backend, please check whether OTP 472918 belongs to sourabh@gmail.com.
       const { data } = await axios.post("http://localhost:5000/api/v1/verify", {
         email,
         otp: otpString,
       });
 
+      //sample data
+      // {
+      //   "message": "Email verified successfully",
+      //   "token": "abc123"
+      // }
+
+      //Show backend message
       alert(data.message);
 
+      //Save authentication token.Your backend gives the frontend a token after successful verification.The frontend stores that token in a cookie.
       Cookies.set("token", data.token, {
-        expires: 15,
-        secure: false,
-        path: "/",
+        expires: 15, //The cookie expires after 15 days.
+        secure: false, //The cookie can be sent over non-HTTPS connections.
+        path: "/", //The cookie is available throughout the website.
       });
 
-      setOtp(["", "", "", "", "", ""]);
-      inputRefs.current[0]?.focus();
+      setOtp(["", "", "", "", "", ""]); //After successful verification, all OTP boxes become empty.
+      inputRefs.current[0]?.focus(); //This puts the cursor into the first OTP box.
     } catch (error: any) {
       setError(error.response?.data?.message);
     } finally {
+      //This runs whether the request succeeds or fails.
       setLoading(false);
     }
   };
 
   const handleResendOtp = async () => {
+    //Start resend loading
     setResendLoading(true);
     setError("");
 
     try {
+      //Request a new OTP
       const { data } = await axios.post("http://localhost:5000/api/v1/login", {
         email,
       });
@@ -76,56 +87,61 @@ const VerifyPage = () => {
   useEffect(() => {
     if (timer > 0) {
       const interval = setInterval(() => {
-        setTimer((prev) => prev - 1);
-      }, 1000);
+        setTimer((prev) => prev - 1); //update counter
+      }, 1000); //took 1000 ms
 
-      return () => clearInterval(interval);
+      return () => clearInterval(interval); //When the effect is cleaned up, it stops the previous interval.
     }
-  }, [timer]);
+  }, [timer]); //Run this effect whenever timer changes.So every second, timer changes:React runs the effect again.
 
+  //Now the function handling OTP input.
   const handleInputChange = (index: number, value: string): void => {
-    if (value.length > 1) return;
+    //It receives:{index,value}-->>indexing is 0 based
+    if (value.length > 1) return; //Each OTP box should contain only one character.
 
-    const newOtp = [...otp];
-    newOtp[index] = value;
+    const newOtp = [...otp]; //copy it Because React state should not be directly modified.
+    newOtp[index] = value; //Update specific digit
     setOtp(newOtp);
     setError("");
 
+    //Automatically move to next input
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
+  //it handles Backspace.
   const handleKeyDown = (
     index: number,
     e: React.KeyboardEvent<HTMLElement>,
   ): void => {
+    //Backspace behavior
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
 
+  //This function handles the entire OTP.
   const handlePaste = (
     e: React.ClipboardEvent<HTMLInputElement | null>,
   ): void => {
-    e.preventDefault();
+    e.preventDefault(); //Stop the browser's normal paste behavior.We'll handle the paste ourselves.
 
-    const pastedData = e.clipboardData.getData("text");
-    const digits = pastedData.replace(/\D/g, "").slice(0, 6);
-
+    const pastedData = e.clipboardData.getData("text"); //If user copied:"Your OTP is 472918" then pastedData = "Your OTP is 472918"
+    const digits = pastedData.replace(/\D/g, "").slice(0, 6); //Find everything that is NOT a digit and Remove non-digits. takes only the first 6 characters.so 472918999 becomes 472918
     if (digits.length === 6) {
-      const newOtp = digits.split("");
+      const newOtp = digits.split(""); //Convert string to array
       setOtp(newOtp);
-      inputRefs.current[5]?.focus();
+      inputRefs.current[5]?.focus(); //Cursor goes to the sixth box.
     }
   };
 
+  //The return contains what appears on the screen.
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-8">
           <div className="text-center mb-8 relative">
-
             <button
               className="absolute top-0 left-0 p-2 text-gray-300 hover:text-white"
               onClick={() => router.push("/login")}
@@ -186,7 +202,7 @@ const VerifyPage = () => {
             <button
               type="submit"
               className="w-full bg-blue-600 text-white py-4 px-6 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading}
+              disabled={loading} //Disable button while verifying, when loading = true, the button becomes disabled.
             >
               {loading ? (
                 <div className="flex items-center justify-center gap-2">
