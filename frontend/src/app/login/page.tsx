@@ -6,13 +6,12 @@ import React, { useState } from "react";
 import axios from "axios";
 import { useAppData, user_service } from "@/context/AppContext";
 import Loading from "@/components/Loading";
+import toast from "react-hot-toast";
 
 const LoginPage = () => {
   const [email, setEmail] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
-
   const router = useRouter();
-
   const { isAuth, loading: userLoading } = useAppData();
 
   const handleSubmit = async (
@@ -26,11 +25,10 @@ const LoginPage = () => {
         email,
       });
 
-      alert(data.message);
-
+      toast.success(data.message);
       router.push(`/verify?email=${email}`);
     } catch (error: any) {
-      alert(error.response?.data?.message || "Something went wrong");
+      toast.error(error.response?.data?.message || "Something went wrong");
     } finally {
       setLoading(false);
     }

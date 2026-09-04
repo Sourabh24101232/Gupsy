@@ -7,9 +7,10 @@ import Cookies from "js-cookie"; //Used to create/read browser cookies.This comp
 import axios from "axios"; //Axios is used to make HTTP requests to your backend.
 import { useAppData, user_service } from "@/context/AppContext";
 import Loading from "./Loading";
+import toast from "react-hot-toast";
 
 const VerifyOtp = () => {
-  const { isAuth, setIsAuth, setUser,loading:userLoading } = useAppData();
+  const { isAuth, setIsAuth, setUser, loading: userLoading } = useAppData();
 
   const [loading, setLoading] = useState(false); //Stores whether OTP verification is currently happening.The button changes from: Verify → Verifying...
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]); //otp is an array of string
@@ -49,7 +50,7 @@ const VerifyOtp = () => {
       // }
 
       //Show backend message
-      alert(data.message);
+      toast.success(data.message);
 
       //Save authentication token.Your backend gives the frontend a token after successful verification.The frontend stores that token in a cookie.
       Cookies.set("token", data.token, {
@@ -60,8 +61,8 @@ const VerifyOtp = () => {
 
       setOtp(["", "", "", "", "", ""]); //After successful verification, all OTP boxes become empty.
       inputRefs.current[0]?.focus(); //This puts the cursor into the first OTP box.
-      setUser(data.User)
-      setIsAuth(true)
+      setUser(data.User);
+      setIsAuth(true);
     } catch (error: any) {
       setError(error.response?.data?.message);
     } finally {
@@ -81,7 +82,7 @@ const VerifyOtp = () => {
         email,
       });
 
-      alert(data.message);
+      toast.success(data.message);
       setTimer(60);
     } catch (error: any) {
       setError(error.response?.data?.message);
@@ -142,7 +143,7 @@ const VerifyOtp = () => {
     }
   };
 
-  if(userLoading) return <Loading/>
+  if (userLoading) return <Loading />;
   if (isAuth) redirect("/chat");
 
   //The return contains what appears on the screen.
