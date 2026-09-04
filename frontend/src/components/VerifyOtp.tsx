@@ -10,7 +10,14 @@ import Loading from "./Loading";
 import toast from "react-hot-toast";
 
 const VerifyOtp = () => {
-  const { isAuth, setIsAuth, setUser, loading: userLoading } = useAppData();
+  const {
+    isAuth,
+    setIsAuth,
+    setUser,
+    loading: userLoading,
+    fetchChats,
+    fetchUsers,
+  } = useAppData();
 
   const [loading, setLoading] = useState(false); //Stores whether OTP verification is currently happening.The button changes from: Verify → Verifying...
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]); //otp is an array of string
@@ -63,6 +70,8 @@ const VerifyOtp = () => {
       inputRefs.current[0]?.focus(); //This puts the cursor into the first OTP box.
       setUser(data.User);
       setIsAuth(true);
+      fetchChats();
+      fetchUsers();
     } catch (error: any) {
       setError(error.response?.data?.message);
     } finally {
