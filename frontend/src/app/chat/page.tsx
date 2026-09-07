@@ -9,6 +9,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import Cookies from "js-cookie";
 import toast from "react-hot-toast";
 import axios from "axios";
+import ChatHeader from "@/components/ChatHeader";
+import ChatMessages from "@/components/ChatMessages";
 
 export interface Message {
   _id: string;
@@ -148,6 +150,16 @@ const ChatApp = () => {
         createChat={createChat}
       />
 
+      <div className="flex-1 flex flex-col justify-between p-4 backdrop-blur-xl bg-white/5 border border-white/10">
+        <ChatHeader 
+        user={user}
+        setSidebarOpen={setSidebarOpen}
+        isTyping={isTyping}
+        />
+
+        <ChatMessages/>
+      </div>
+
       <main className="flex min-w-0 flex-1 flex-col">
         {selectedUser ? (
           <>
@@ -161,8 +173,12 @@ const ChatApp = () => {
               </button>
               <UserCircle className="h-8 w-8 text-gray-300" />
               <div>
-                <h1 className="font-semibold">{user?.name ?? "Loading chat..."}</h1>
-                {user?.email && <p className="text-sm text-gray-400">{user.email}</p>}
+                <h1 className="font-semibold">
+                  {user?.name ?? "Loading chat..."}
+                </h1>
+                {user?.email && (
+                  <p className="text-sm text-gray-400">{user.email}</p>
+                )}
               </div>
             </header>
 
@@ -170,8 +186,13 @@ const ChatApp = () => {
               {(messages ?? []).map((chatMessage) => {
                 const sentByMe = chatMessage.sender === loggedInUser?._id;
                 return (
-                  <div key={chatMessage._id} className={`flex ${sentByMe ? "justify-end" : "justify-start"}`}>
-                    <p className={`max-w-[75%] rounded-2xl px-4 py-2 ${sentByMe ? "bg-blue-600" : "bg-gray-700"}`}>
+                  <div
+                    key={chatMessage._id}
+                    className={`flex ${sentByMe ? "justify-end" : "justify-start"}`}
+                  >
+                    <p
+                      className={`max-w-[75%] rounded-2xl px-4 py-2 ${sentByMe ? "bg-blue-600" : "bg-gray-700"}`}
+                    >
                       {chatMessage.text}
                     </p>
                   </div>
@@ -179,7 +200,10 @@ const ChatApp = () => {
               })}
             </section>
 
-            <form onSubmit={handleSendMessage} className="flex gap-2 border-t border-gray-700 bg-gray-800 p-4">
+            <form
+              onSubmit={handleSendMessage}
+              className="flex gap-2 border-t border-gray-700 bg-gray-800 p-4"
+            >
               <input
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
@@ -198,7 +222,11 @@ const ChatApp = () => {
           </>
         ) : (
           <section className="flex flex-1 flex-col items-center justify-center gap-3 text-gray-400">
-            <button className="rounded-lg p-2 hover:bg-gray-800 sm:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open conversations">
+            <button
+              className="rounded-lg p-2 hover:bg-gray-800 sm:hidden"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open conversations"
+            >
               <Menu className="h-5 w-5" />
             </button>
             <UserCircle className="h-12 w-12" />
