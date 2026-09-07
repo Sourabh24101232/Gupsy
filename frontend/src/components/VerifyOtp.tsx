@@ -68,7 +68,7 @@ const VerifyOtp = () => {
 
       setOtp(["", "", "", "", "", ""]); //After successful verification, all OTP boxes become empty.
       inputRefs.current[0]?.focus(); //This puts the cursor into the first OTP box.
-      setUser(data.User);
+      setUser(data.user);
       setIsAuth(true);
       fetchChats();
       fetchUsers();

@@ -5,8 +5,8 @@ import Cookies from "js-cookie";
 import axios from "axios";
 import toast, { Toaster } from "react-hot-toast";
 
-export const user_service = "https://localhost:5000";
-export const chat_service = "https://localhost:5002";
+export const user_service = "http://localhost:5000";
+export const chat_service = "http://localhost:5002";
 
 export interface User {
   _id: string;
@@ -104,7 +104,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     const token = Cookies.get("token");
     if (!token) {
       setLoading(false);
-      return false;
+      return;
     }
 
     try {

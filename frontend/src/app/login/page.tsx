@@ -34,7 +34,7 @@ const LoginPage = () => {
     }
   };
 
-  if (userLoading) <Loading />;
+  if (userLoading) return <Loading />;
   if (isAuth) redirect("/chat");
 
   return (
