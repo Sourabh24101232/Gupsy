@@ -58,8 +58,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   async function fetchUser() {
+    const token = Cookies.get("token");
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      const token = Cookies.get("token");
       const { data } = await axios.get(`${user_service}/api/v1/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -86,6 +91,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   async function fetchChats() {
     const token = Cookies.get("token");
+    if (!token) return;
+
     try {
       const { data } = await axios.get(`${chat_service}/api/v1/chat/all`, {
         headers: {
@@ -103,7 +110,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   async function fetchUsers() {
     const token = Cookies.get("token");
     if (!token) {
-      setLoading(false);
       return;
     }
 
@@ -121,9 +127,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   }
 
   useEffect(() => {
-    fetchUser();
-    fetchChats();
-    fetchUsers();
+    queueMicrotask(() => {
+      void fetchUser();
+      void fetchChats();
+      void fetchUsers();
+    });
   }, []);
 
   return (

@@ -5,10 +5,9 @@ import React from "react";
 interface ChatHeaderProps {
   user: User | null;
   setSidebarOpen: (open: boolean) => void;
-  isTyping: boolean;
 }
 
-const ChatHeader = ({ user, setSidebarOpen, isTyping }: ChatHeaderProps) => {
+const ChatHeader = ({ user, setSidebarOpen }: ChatHeaderProps) => {
   return (
     <>
       {/* mobile menu toggle */}

@@ -27,8 +27,11 @@ const LoginPage = () => {
 
       toast.success(data.message);
       router.push(`/verify?email=${email}`);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Something went wrong");
+    } catch (error: unknown) {
+      const message = axios.isAxiosError<{ message?: string }>(error)
+        ? error.response?.data?.message ?? "Something went wrong"
+        : "Something went wrong";
+      toast.error(message);
     } finally {
       setLoading(false);
     }

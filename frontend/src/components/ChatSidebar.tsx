@@ -1,4 +1,4 @@
-import { User } from "@/context/AppContext";
+import { Chats, User } from "@/context/AppContext";
 import Link from "next/link";
 import {
   CornerDownRight,
@@ -19,7 +19,7 @@ interface ChatSidebarProps {
   setShowAllUsers: (show: boolean | ((prev: boolean) => boolean)) => void;
   users: User[] | null;
   loggedInUser: User | null;
-  chats: any[] | null;
+  chats: Chats[] | null;
   selectedUser: string | null;
   setSelectedUser: (userId: string | null) => void;
   handleLogout: () => void;

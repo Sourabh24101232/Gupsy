@@ -72,8 +72,11 @@ const VerifyOtp = () => {
       setIsAuth(true);
       fetchChats();
       fetchUsers();
-    } catch (error: any) {
-      setError(error.response?.data?.message);
+    } catch (error: unknown) {
+      const message = axios.isAxiosError<{ message?: string }>(error)
+        ? error.response?.data?.message ?? "OTP verification failed"
+        : "OTP verification failed";
+      setError(message);
     } finally {
       //This runs whether the request succeeds or fails.
       setLoading(false);
@@ -93,8 +96,11 @@ const VerifyOtp = () => {
 
       toast.success(data.message);
       setTimer(60);
-    } catch (error: any) {
-      setError(error.response?.data?.message);
+    } catch (error: unknown) {
+      const message = axios.isAxiosError<{ message?: string }>(error)
+        ? error.response?.data?.message ?? "Could not resend the OTP"
+        : "Could not resend the OTP";
+      setError(message);
     } finally {
       setResendLoading(false);
     }
@@ -237,7 +243,7 @@ const VerifyOtp = () => {
             </button>
           </form>
 
-          <p className="text-gray-400 text-sm mb-4">Didn't receive the code?</p>
+          <p className="text-gray-400 text-sm mb-4">Didn&apos;t receive the code?</p>
 
           {timer > 0 ? (
             <p className="text-sm text-gray-400">Resend code in {timer}s</p>
