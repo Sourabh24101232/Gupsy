@@ -1,3 +1,5 @@
+//This is the main Chat Page / parent component. Its job is mainly to connect all the smaller components together and manage the chat state + API calls.
+
 "use client";
 
 import ChatSidebar from "@/components/ChatSidebar";
@@ -27,23 +29,24 @@ export interface Message {
   createdAt: string;
 }
 
+//Getting data from AppContext. useAppData() gives the page global application data.
 const ChatApp = () => {
   const {
     loading,
     isAuth,
     logoutUser,
-    chats,
-    user: loggedInUser,
-    users,
+    chats, //User's existing chats
+    user: loggedInUser, //just renaming
+    users, //List of users
     fetchChats,
   } = useAppData();
 
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
+  const [selectedUser, setSelectedUser] = useState<string | null>(null); //It actually contains the chat ID, not the user ID
+  const [message, setMessage] = useState(""); //Current message being typed,This is passed to MessageInput.
+  const [messages, setMessages] = useState<Message[] | null>(null); //Stores messages of the currently selected chat.
+  const [user, setUser] = useState<User | null>(null); //Selected user's information , This stores the other person's information.This gets used by: <ChatHeader user={user} />
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[] | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [showAllUser, setShowAllUser] = useState(false);
+  const [showAllUser, setShowAllUser] = useState(false); //Controls whether the sidebar shows existing chats or all users.
 
   const router = useRouter();
 
@@ -56,10 +59,13 @@ const ChatApp = () => {
 
   const handleLogout = () => logoutUser();
 
+  //This is the function that loads the messages of the selected chat.
   const fetchChat = useCallback(async () => {
-    if (!selectedUser) return;
-    const token = Cookies.get("token");
+    //useCallback keeps the function reference stable unless: selectedUser or fetchChats changes. Without it, a new fetchChat function would be created on every render, which can cause unnecessary effect executions.
+    if (!selectedUser) return; //No selected chat?
+    const token = Cookies.get("token"); //Gets the JWT token stored in browser cookies.
 
+    //API request
     try {
       const { data } = await axios.get(
         `${chat_service}/api/v1/message/${selectedUser}`,
@@ -72,15 +78,18 @@ const ChatApp = () => {
 
       setMessages(data.messages);
       setUser(data.user);
-
-      await fetchChats();
+      await fetchChats(); //Refresh sidebar chats Because after opening a chat, things like:last message,unread count,latest chat may have changed.
     } catch (error) {
       console.log(error);
       toast.error("Failed to load messages");
     }
   }, [fetchChats, selectedUser]);
 
+  //This runs when you select a user who doesn't already have a chat.
   async function createChat(u: User) {
+    //The user object comes from ChatSidebar.
+
+    //Send request.You're telling backend:Create a chat between me and this user.
     try {
       const token = Cookies.get("token");
       const { data } = await axios.post(
@@ -94,15 +103,16 @@ const ChatApp = () => {
           },
         },
       );
-
-      setSelectedUser(data.chatId);
-      setShowAllUser(false);
-      await fetchChats();
+      //Backend creates/finds a chat and returns:chatId
+      setSelectedUser(data.chatId); //Store chat ID
+      setShowAllUser(false);//Hide all users
+      await fetchChats();//Refresh chats Because a new chat now exists
     } catch {
       toast.error("Failed to start chat");
     }
   }
-
+ 
+  //sending a message. MessageInput component handles the UI/form, while ChatApp handles the actual API request
   const handleMessageSend = async (
     e: React.FormEvent<HTMLFormElement>,
     imageFile?: File | null,
@@ -110,13 +120,12 @@ const ChatApp = () => {
     e.preventDefault();
 
     if (!message.trim() && !imageFile) return false;
-    if (!selectedUser) return false;
+    if (!selectedUser) return false;//No selected chat → can't send.
 
     const token = Cookies.get("token");
 
     try {
       const formData = new FormData();
-
       formData.append("chatId", selectedUser);
 
       if (message.trim()) {
@@ -125,7 +134,8 @@ const ChatApp = () => {
       if (imageFile) {
         formData.append("image", imageFile);
       }
-
+      
+      //Send to backend
       const { data } = await axios.post(
         `${chat_service}/api/v1/message`,
         formData,
@@ -136,10 +146,11 @@ const ChatApp = () => {
         },
       );
 
+      //Immediately add returned message
       setMessages((prev) => {
         const currentMessages = prev || [];
 
-        const messageExists = currentMessages.some(
+        const messageExists = currentMessages.some(//Is this message already in my messages?
           (msg) => msg._id === data.message._id,
         );
         if (!messageExists) {
@@ -149,12 +160,12 @@ const ChatApp = () => {
         return currentMessages;
       });
 
-      setMessage("");
-      await fetchChats();
+      setMessage("");//Clear input
+      await fetchChats();//Refresh chats
       return true;
     } catch (error: unknown) {
       const errorMessage = axios.isAxiosError<{ message?: string }>(error)
-        ? error.response?.data?.message ?? "Failed to send message"
+        ? (error.response?.data?.message ?? "Failed to send message")
         : "Failed to send message";
       toast.error(errorMessage);
       return false;
@@ -186,10 +197,7 @@ const ChatApp = () => {
       />
 
       <div className="flex-1 flex flex-col justify-between p-4 backdrop-blur-xl bg-white/5 border border-white/10">
-        <ChatHeader
-          user={user}
-          setSidebarOpen={setSidebarOpen}
-        />
+        <ChatHeader user={user} setSidebarOpen={setSidebarOpen} />
 
         <ChatMessages
           selectedUser={selectedUser}

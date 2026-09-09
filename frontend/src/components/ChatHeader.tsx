@@ -1,10 +1,13 @@
+//Its job is to show the header of the current conversation and provide the mobile sidebar menu button.
+
 import { User } from "@/context/AppContext";
 import { Menu, UserCircle } from "lucide-react";
 import React from "react";
 
+//This component receives two props.
 interface ChatHeaderProps {
-  user: User | null;
-  setSidebarOpen: (open: boolean) => void;
+  user: User | null;//This represents the user whose conversation is currently selected.
+  setSidebarOpen: (open: boolean) => void;//This is a function passed from the parent component.
 }
 
 const ChatHeader = ({ user, setSidebarOpen }: ChatHeaderProps) => {
@@ -47,6 +50,7 @@ const ChatHeader = ({ user, setSidebarOpen }: ChatHeaderProps) => {
           ) : (
             <div className="flex items-center gap-4">
 
+               {/* This simply displays the user icon. */}
               <div className="w-14 h-14 rounded-full bg-gray-700 flex items-center justify-center">
                 <UserCircle className="w-8 h-8 text-gray-300" />
               </div>

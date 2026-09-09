@@ -1,5 +1,15 @@
-import { Chats, User } from "@/context/AppContext";
-import Link from "next/link";
+// It controls the left sidebar where you can:
+
+// See your existing chats
+// Search for users
+// Start a new chat
+// Select a conversation
+// Open your profile
+// Logout
+// Open/close the sidebar on mobile
+
+import { Chats, User } from "@/context/AppContext"; //User and Chats are TypeScript types coming from AppContext.
+import Link from "next/link"; //Used for navigation.
 import {
   CornerDownRight,
   CornerUpLeft,
@@ -12,10 +22,11 @@ import {
 } from "lucide-react";
 import React, { useState } from "react";
 
+//These are the things that the parent component gives to ChatSidebar.
 interface ChatSidebarProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
-  showAllUsers: boolean;
+  showAllUsers: boolean;//"Should I show the list of all users?"
   setShowAllUsers: (show: boolean | ((prev: boolean) => boolean)) => void;
   users: User[] | null;
   loggedInUser: User | null;
@@ -23,7 +34,7 @@ interface ChatSidebarProps {
   selectedUser: string | null;
   setSelectedUser: (userId: string | null) => void;
   handleLogout: () => void;
-  createChat:(user:User)=>void;
+  createChat: (user: User) => void;
 }
 
 const ChatSidebar = ({
@@ -39,8 +50,9 @@ const ChatSidebar = ({
   handleLogout,
   createChat,
 }: ChatSidebarProps) => {
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(""); //This state is used to filter users.
 
+  //Everything inside <aside> represents the sidebar.
   return (
     <aside
       className={`fixed z-20 sm:static top-0 left-0 h-screen w-80 bg-gray-900 border-r border-gray-700 transform ${
@@ -50,6 +62,7 @@ const ChatSidebar = ({
       {/* header */}
       <div className="p-6 border-b border-gray-700">
         <div className="sm:hidden flex justify-end mb-0">
+          {/* Mobile close button */}
           <button
             onClick={() => setSidebarOpen(false)}
             className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
@@ -63,12 +76,13 @@ const ChatSidebar = ({
             <div className="p-2 bg-blue-600 rounded-lg justify-between">
               <MessageCircle className="w-5 h-5 text-white" />
             </div>
-
+            {/* Header title */}
             <h2 className="text-xl font-bold text-white">
               {showAllUsers ? "New Chat" : "Messages"}
             </h2>
           </div>
 
+          {/*  Plus / X button */}
           <button
             className={`p-2.5 rounded-lg transition-colors ${
               showAllUsers
@@ -88,6 +102,7 @@ const ChatSidebar = ({
 
       {/* content */}
       <div className="flex-1 overflow-hidden px-4 py-2">
+        {/* Case 1 — Show all users */}
         {showAllUsers ? (
           <div className="space-y-4 h-full">
             <div className="relative">
@@ -108,13 +123,14 @@ const ChatSidebar = ({
                 ?.filter(
                   (u) =>
                     u._id !== loggedInUser?._id &&
-                    u.name.toLowerCase().includes(searchQuery.toLowerCase()),
+                    u.name.toLowerCase().includes(searchQuery.toLowerCase()), //"rahul".includes("rah") → true
                 )
+                //creates a button for every user
                 .map((u) => (
                   <button
-                    key={u._id}
+                    key={u._id} //React needs a unique key when rendering lists.
                     className="w-full text-left p-4 rounded-lg border border-gray-700 hover:border-gray-600 hover:bg-gray-800 transition-colors"
-                    onClick={()=>createChat(u)}
+                    onClick={() => createChat(u)} //When you click Rahul: createChat(Rahul) , Parent handles chat creation
                   >
                     <div className="flex items-center gap-3">
                       <div className="relative">
@@ -133,15 +149,18 @@ const ChatSidebar = ({
                 ))}
             </div>
           </div>
-        ) : chats && chats.length > 0 ? (
+        ) : //Case 2 — Existing chats
+        chats && chats.length > 0 ? (
           <div className="space-y-2 overflow-y-auto h-full pb-4">
             {chats.map((chat) => {
+              //Each chat represents one conversation.
               const latestMessage = chat.chat.latestMessage;
-              const isSelected = selectedUser === chat.chat._id;
-              const isSentByMe = latestMessage?.sender === loggedInUser?._id;
+              const isSelected = selectedUser === chat.chat._id; //This determines whether this conversation is currently open.This allows the UI to visually highlight the selected conversation.
+              const isSentByMe = latestMessage?.sender === loggedInUser?._id; //Checking who sent the latest message
               const unseenCount = chat.chat.unseenCount || 0;
 
               return (
+                //Selecting a chat
                 <button
                   key={chat.chat._id}
                   onClick={() => {
@@ -169,9 +188,11 @@ const ChatSidebar = ({
                             isSelected ? "text-white" : "text-gray-200"
                           }`}
                         >
+                          {/* Displays the person you're chatting with. */}
                           {chat.user.name}
                         </span>
 
+                        {/* Unseen count */}
                         {unseenCount > 0 && (
                           <div className="bg-red-600 text-white text-xs font-bold rounded-full min-w-[22px] h-5.5 flex items-center justify-center px-2">
                             {unseenCount > 99 ? "99+" : unseenCount}
@@ -179,7 +200,9 @@ const ChatSidebar = ({
                         )}
                       </div>
 
+                      {/* Only show the latest message section if a latest message exists. */}
                       {latestMessage && (
+                        //  Sent vs received icon
                         <div className="flex items-center gap-2">
                           {isSentByMe ? (
                             <CornerUpLeft
@@ -193,6 +216,7 @@ const ChatSidebar = ({
                             />
                           )}
 
+                          {/* Latest message text */}
                           <span className="text-sm text-gray-400 truncate flex-1">
                             {latestMessage.text}
                           </span>
@@ -205,6 +229,7 @@ const ChatSidebar = ({
             })}
           </div>
         ) : (
+          //  Case 3 — No conversations
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="p-4 bg-gray-800 rounded-full mb-4">
               <MessageCircle className="w-8 h-8 text-gray-400" />
@@ -219,7 +244,7 @@ const ChatSidebar = ({
         )}
       </div>
 
-      {/* footer */}
+      {/* Footer — Profile */}
       <div className="p-4 border-t border-gray-700 space-y-2">
         <Link
           href={"/profile"}
@@ -242,7 +267,6 @@ const ChatSidebar = ({
 
           <span className="font-medium">Logout</span>
         </button>
-
       </div>
     </aside>
   );
