@@ -11,12 +11,16 @@ interface ChatMessagesProps {
   selectedUser: string | null;
   messages: Message[] | null;
   loggedInUser: User | null;
+  hasOlderMessages: boolean;
+  loadOlderMessages: () => void;
 }
 
 const ChatMessages = ({
   selectedUser,
   messages,
   loggedInUser,
+  hasOlderMessages,
+  loadOlderMessages,
 }: ChatMessagesProps) => {
   //Component receives the props
   const bottomRef = useRef<HTMLDivElement>(null); //This creates a reference to an invisible HTML <div> at the bottom of the messages.Then JavaScript can tell the browser: Scroll to bottomRef. This is how automatic scrolling works.
@@ -51,6 +55,15 @@ const ChatMessages = ({
           </p>
         ) : (
           <>
+            {hasOlderMessages && (
+              <button
+                type="button"
+                onClick={loadOlderMessages}
+                className="mx-auto block text-sm text-blue-400 hover:text-blue-300"
+              >
+                Load older messages
+              </button>
+            )}
             {uniqueMessages.map((e, i) => {
               //e means the current message and i means its index.
               const isSentByMe = e.sender === loggedInUser?._id; //to determine which side the message belongs to.

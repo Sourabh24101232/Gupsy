@@ -6,6 +6,17 @@ import nodemailer from "nodemailer";
 
 dotenv.config();
 
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+const scheduleConsumerReconnect = () => {
+  if (reconnectTimer) return;
+
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    void startSendOtpConsumer();
+  }, 5000);
+};
+
 //Create the consumer function
 export const startSendOtpConsumer = async () => {
   try {
@@ -33,6 +44,11 @@ export const startSendOtpConsumer = async () => {
     const queueName = "send-otp";
     //assertQueue() basically means: Make sure this queue exists. If it doesn't exist, create it
     await channel.assertQueue(queueName, { durable: true });
+
+    connection.on("close", () => {
+      console.error("RabbitMQ connection closed. Retrying consumer in 5 seconds...");
+      scheduleConsumerReconnect();
+    });
 
     console.log("✅ Mail service consumer started.listening for otp emails.");
 
@@ -88,5 +104,7 @@ export const startSendOtpConsumer = async () => {
     });
   } catch (err) {
     console.log("Failed to start rabbitMq consumer", err);
+    console.error("Retrying RabbitMQ consumer in 5 seconds...");
+    scheduleConsumerReconnect();
   }
 };

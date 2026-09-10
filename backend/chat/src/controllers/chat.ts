@@ -4,6 +4,7 @@ import { Chat } from "../models/chat.js";
 import axios from "axios";
 import { Messages } from "../models/messages.js";
 import mongoose from "mongoose";
+import { io } from "../config/socket.js";
 
 export const createNewChat = TryCatch(
   async (req: AuthenticatedRequest, res) => {
@@ -284,6 +285,7 @@ export const sendMessage = TryCatch(async (req: AuthenticatedRequest, res) => {
   );
 
   // emit to sockets
+  io.to(otherUserId.toString()).emit("newMessage", savedMessage);
 
   res.status(201).json({
     message: savedMessage,
@@ -348,6 +350,7 @@ export const getMessagesByChat = TryCatch(
     //   seen: false,
     // });
 
+    const seenAt = new Date();
     await Messages.updateMany(
       {
         chatId: chatId,
@@ -356,7 +359,7 @@ export const getMessagesByChat = TryCatch(
       },
       {
         seen: true,
-        seenAt: new Date(),
+        seenAt,
       },
     );
 
@@ -382,6 +385,11 @@ export const getMessagesByChat = TryCatch(
       });
       return;
     }
+
+    io.to(otherUserId.toString()).emit("messagesSeen", {
+      chatId,
+      seenAt: seenAt.toISOString(),
+    });
 
     //Get other user's details from User Service
     let data;

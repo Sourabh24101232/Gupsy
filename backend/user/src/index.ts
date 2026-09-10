@@ -26,7 +26,7 @@ for (const key of requiredEnv) {
 }
 
 connectDb();
-connectRabbitMQ();
+void connectRabbitMQ();
 
 //redis connection
 export const redisClient = createClient({

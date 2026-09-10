@@ -3,7 +3,17 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-let channel: amqp.Channel;
+let channel: amqp.Channel | undefined;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+const scheduleReconnect = () => {
+  if (reconnectTimer) return;
+
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    void connectRabbitMQ();
+  }, 5000);
+};
 
 export const connectRabbitMQ = async () => {
   try {
@@ -26,10 +36,16 @@ export const connectRabbitMQ = async () => {
     channel = await connection.createChannel();
 
     console.log("✅ connected to rabbitmq");
+    connection.on("close", () => {
+      channel = undefined;
+      console.error("RabbitMQ connection closed. Retrying in 5 seconds...");
+      scheduleReconnect();
+    });
   } catch (error) {
     // console.log("❌ Failed to connect to rabbitmq", error);
     console.error("❌ Failed to connect to RabbitMQ", error);
-    throw error;
+    console.error("Retrying RabbitMQ connection in 5 seconds...");
+    scheduleReconnect();
   }
 };
 

@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import connectDb from "./config/db.js";
 import chatRoutes from "./routes/chat.js";
 import cors from "cors";
+import { app ,server} from "./config/socket.js";
 
 dotenv.config(); //to read variables from .env
 
@@ -24,14 +25,14 @@ for (const key of requiredEnv) {
 
 connectDb();
 
-const app = express(); //create server
 app.use(express.json());
+
 //Without CORS, the browser can block:axios.get("https://localhost:5000/api/v1/me");
 app.use(cors());//This tells the browser:"Requests from other origins are allowed."
 app.use("/api/v1/", chatRoutes);
 
 //run server
 const port = process.env.PORT;
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
