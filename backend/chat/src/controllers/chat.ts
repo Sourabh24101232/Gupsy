@@ -4,7 +4,7 @@ import { Chat } from "../models/chat.js";
 import axios from "axios";
 import { Messages } from "../models/messages.js";
 import mongoose from "mongoose";
-import { io } from "../config/socket.js";
+import { getRecieverSocketId, io } from "../config/socket.js";
 
 export const createNewChat = TryCatch(
   async (req: AuthenticatedRequest, res) => {
@@ -130,7 +130,10 @@ export const getAllChats = TryCatch(async (req: AuthenticatedRequest, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
   const skip = (page - 1) * limit;
   const [chats, total] = await Promise.all([
-    Chat.find({ users: userId }).sort({ updatedAt: -1 }).skip(skip).limit(limit),
+    Chat.find({ users: userId })
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(limit),
     Chat.countDocuments({ users: userId }),
   ]);
 
@@ -247,12 +250,20 @@ export const sendMessage = TryCatch(async (req: AuthenticatedRequest, res) => {
   }
 
   // socket setup
+  const receiverSocketId = getRecieverSocketId(otherUserId.toString());
+  let isReceiverInChatRoom = false;
+  if (receiverSocketId) {
+    const receiverSocket = io.sockets.sockets.get(receiverSocketId);
+    if (receiverSocket && receiverSocket.rooms.has(chatId)) {
+      isReceiverInChatRoom = true;
+    }
+  }
 
   let messageData: any = {
     chatId: chatId,
     sender: senderId,
-    seen: false,
-    seenAt: undefined,
+    seen: isReceiverInChatRoom,
+    seenAt: isReceiverInChatRoom ? new Date() : undefined,
   };
 
   if (imageFile) {
@@ -285,7 +296,23 @@ export const sendMessage = TryCatch(async (req: AuthenticatedRequest, res) => {
   );
 
   // emit to sockets
-  io.to(otherUserId.toString()).emit("newMessage", savedMessage);
+  io.to(chatId).emit("newMessage", savedMessage);
+  if (receiverSocketId) {
+    io.to(receiverSocketId).emit("newMessage", savedMessage);
+  }
+
+  const senderSocketId = getRecieverSocketId(senderId.toString());
+  if (senderSocketId) {
+    io.to(senderSocketId).emit("newMessage", savedMessage);
+  }
+
+  if (isReceiverInChatRoom && senderSocketId) {
+    io.to(senderSocketId).emit("messagesSeen", {
+      chatId: chatId,
+      seenBy: otherUserId,
+      messageIds: [savedMessage._id],
+    });
+  }
 
   res.status(201).json({
     message: savedMessage,
@@ -344,11 +371,11 @@ export const getMessagesByChat = TryCatch(
     }
 
     //Mark received messages as seen
-    // const messagesToMarkSeen = await Messages.find({
-    //   chatId: chatId,
-    //   sender: { $ne: userId },
-    //   seen: false,
-    // });
+    const messagesToMarkSeen = await Messages.find({
+      chatId: chatId,
+      sender: { $ne: userId },
+      seen: false,
+    });
 
     const seenAt = new Date();
     await Messages.updateMany(
@@ -415,6 +442,16 @@ export const getMessagesByChat = TryCatch(
     }
 
     // socket work
+    if (messagesToMarkSeen.length > 0) {
+      const otherUserSocketId = getRecieverSocketId(otherUserId.toString());
+      if (otherUserSocketId) {
+        io.to(otherUserSocketId).emit("messagesSeen", {
+          chatId: chatId,
+          seenBy: userId,
+          messageIds: messagesToMarkSeen.map((msg) => msg._id),
+        });
+      }
+    }
 
     //Send messages + user details
     res.json({

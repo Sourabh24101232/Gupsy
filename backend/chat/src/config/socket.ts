@@ -18,10 +18,17 @@ const io = new Server(server, {
 //Keep a map for userId → socketId.
 const userSocketMap: Record<string, Set<string>> = {};
 
+export const getRecieverSocketId = (recieverId: string): string | undefined => {
+  return userSocketMap[recieverId];
+};
+
 io.use((socket, next) => {
   try {
     const token = socket.handshake.auth.token as string | undefined;
-    const decoded = jwt.verify(token ?? "", process.env.JWT_SECRET as string) as JwtPayload;
+    const decoded = jwt.verify(
+      token ?? "",
+      process.env.JWT_SECRET as string,
+    ) as JwtPayload;
     const userId = decoded.user?._id as string | undefined;
     if (!userId) return next(new Error("Unauthorized socket connection"));
     socket.data.userId = userId;
@@ -76,7 +83,7 @@ io.on("connection", (socket: Socket) => {
 
     console.log(`User ${userId} left chat room ${chatId}`);
   });
-  
+
   //If THIS particular socket disconnects, execute this function.
   socket.on("disconnect", () => {
     console.log("User Disconnected", socket.id);
