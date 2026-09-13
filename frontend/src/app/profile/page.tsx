@@ -1,73 +1,171 @@
 "use client";
 
-import Loading from "@/components/Loading";
-import { useAppData } from "@/context/AppContext";
-import Link from "next/link";
+import { useAppData, user_service } from "@/context/AppContext";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { ArrowLeft, Mail, MessageCircle, UserCircle } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import Cookies from "js-cookie";
+import axios from "axios";
+import toast from "react-hot-toast";
 
-export default function ProfilePage() {
-  const { loading, isAuth, user } = useAppData();
+import { ArrowLeft, User, UserCircle, Save } from "lucide-react";
+import Loading from "@/components/Loading";
+
+const ProfilePage = () => {
+  const { user, isAuth, loading, setUser } = useAppData();
+  const [isEdit, setIsEdit] = useState(false);
+  const [name, setName] = useState<string | undefined>("");
+
   const router = useRouter();
 
-  useEffect(() => {
-    if (!loading && !isAuth) router.replace("/login");
-  }, [isAuth, loading, router]);
+  const editHandler = () => {
+    setIsEdit(!isEdit);
+    setName(user?.name);
+  };
 
-  if (loading || !user) return <Loading />;
+  const submitHandler = async (e: any) => {
+    e.preventDefault();
+
+    const token = Cookies.get("token");
+
+    try {
+      const { data } = await axios.post(
+        `${user_service}/api/v1/update/user`,
+        { name },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      Cookies.set("token", data.token, {
+        expires: 15,
+        secure: false,
+        path: "/",
+      });
+
+      toast.success(data.message);
+
+      setUser(data.user);
+      setIsEdit(false);
+    } catch (error: any) {
+      toast.error(error.response.data.message);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAuth && !loading) {
+      router.push("/login");
+    }
+  }, [isAuth, router, loading]);
+
+  if (loading) return <Loading />;
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-gray-900 px-4 py-10 text-white sm:px-6 sm:py-16">
-      <div className="absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-blue-600/15 to-transparent" />
-
-      <section className="relative mx-auto w-full max-w-xl overflow-hidden rounded-2xl border border-gray-700/80 bg-gray-800/90 shadow-2xl shadow-black/20 backdrop-blur">
-        <div className="border-b border-gray-700 bg-gray-800/70 px-6 py-8 sm:px-10">
-          <div className="flex items-center gap-5">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-900/40">
-              <UserCircle className="h-9 w-9" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-blue-400">Your account</p>
-              <h1 className="mt-1 truncate text-3xl font-bold tracking-tight">Profile</h1>
-              <p className="mt-1 text-sm text-gray-400">Your Gupsy account details</p>
-            </div>
-          </div>
-        </div>
-
-        <dl className="space-y-4 px-6 py-7 sm:px-10">
-          <div className="flex items-center gap-4 rounded-xl border border-gray-700 bg-gray-900/50 p-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gray-700 text-blue-400">
-              <UserCircle className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <dt className="text-xs font-semibold uppercase tracking-wider text-gray-400">Name</dt>
-              <dd className="mt-1 truncate text-base font-semibold text-white">{user.name}</dd>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 rounded-xl border border-gray-700 bg-gray-900/50 p-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gray-700 text-blue-400">
-              <Mail className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <dt className="text-xs font-semibold uppercase tracking-wider text-gray-400">Email address</dt>
-              <dd className="mt-1 truncate text-base font-semibold text-white">{user.email}</dd>
-            </div>
-          </div>
-        </dl>
-
-        <div className="flex flex-col gap-3 border-t border-gray-700 bg-gray-900/30 px-6 py-5 sm:flex-row sm:justify-end sm:px-10">
-          <Link
-            href="/chat"
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-gray-800"
+    <div className="min-h-screen bg-gray-900 p-4">
+      <div className="max-w-2xl mx-auto pt-8">
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-8">
+          <button
+            onClick={() => router.push("/chat")}
+            className="p-3 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700"
           >
-            <MessageCircle className="h-4 w-4" />
-            Go to chats
-            <ArrowLeft className="h-4 w-4 rotate-180" />
-          </Link>
+            <ArrowLeft className="w-5 h-5 text-gray-300" />
+          </button>
+
+          <div>
+            <h1 className="text-3xl font-bold text-white">Profile Settings</h1>
+            <p className="text-gray-400 mt-1">
+              Manage your account information
+            </p>
+          </div>
         </div>
-      </section>
-    </main>
+
+        {/* Profile Card */}
+        <div className="bg-gray-800 rounded-lg border border-gray-700 shadow-lg">
+          <div className="bg-gray-700 p-8 border-b border-gray-600">
+            <div className="flex items-center gap-6">
+              {/* Avatar */}
+              <div className="relative">
+                <div className="w-20 h-20 rounded-full bg-gray-600 flex items-center justify-center">
+                  <UserCircle className="w-12 h-12 text-gray-300" />
+                </div>
+
+                <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-gray-800" />
+              </div>
+
+              {/* User info */}
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold text-white mb-1">
+                  {user?.name || "User"}
+                </h2>
+
+                <p className="text-gray-300 text-sm">Active now</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Account information */}
+          <div className="p-8">
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-3">
+                  Display Name
+                </label>
+
+                {isEdit ? (
+                  <form onSubmit={submitHandler} className="space-y-4">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                        placeholder="Enter your name"
+                      />
+
+                      <User className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        type="submit"
+                        className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg"
+                      >
+                        <Save className="w-4 h-4" />
+                        Save Changes
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={editHandler}
+                        className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex items-center justify-between p-4 bg-gray-700 rounded-lg border border-gray-600">
+                    <span className="text-white font-medium text-lg">
+                      {user?.name || "Not set"}
+                    </span>
+
+                    <button
+                      onClick={editHandler}
+                      className="flex items-center gap-2 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
-}
+};
+
+export default ProfilePage;

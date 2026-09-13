@@ -71,42 +71,110 @@ const ChatApp = () => {
   const handleLogout = () => logoutUser();
 
   //This is the function that loads the messages of the selected chat.
-  const fetchChat = useCallback(async (page = 1, append = false) => {
-    //useCallback keeps the function reference stable unless: selectedUser or fetchChats changes. Without it, a new fetchChat function would be created on every render, which can cause unnecessary effect executions.
-    if (!selectedUser) return; //No selected chat?
-    const token = Cookies.get("token"); //Gets the JWT token stored in browser cookies.
-    const requestId = ++chatRequestId.current;
+  const fetchChat = useCallback(
+    async (page = 1, append = false) => {
+      //useCallback keeps the function reference stable unless: selectedUser or fetchChats changes. Without it, a new fetchChat function would be created on every render, which can cause unnecessary effect executions.
+      if (!selectedUser) return; //No selected chat?
+      const token = Cookies.get("token"); //Gets the JWT token stored in browser cookies.
+      const requestId = ++chatRequestId.current;
 
-    //API request
-    try {
-      const { data } = await axios.get(
-        `${chat_service}/api/v1/message/${selectedUser}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
+      //API request
+      try {
+        const { data } = await axios.get(
+          `${chat_service}/api/v1/message/${selectedUser}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            params: { page },
           },
-          params: { page },
-        },
-      );
+        );
 
-      if (requestId !== chatRequestId.current) return;
-      setMessages((previousMessages) =>
-        append ? [...data.messages, ...(previousMessages ?? [])] : data.messages,
-      );
-      setUser(data.user);
-      setMessagePage(data.page);
-      setTotalMessagePages(data.totalPages);
-      await fetchChats(); //Refresh sidebar chats Because after opening a chat, things like:last message,unread count,latest chat may have changed.
-    } catch (error) {
-      console.log(error);
-      toast.error("Failed to load messages");
-    }
-  }, [fetchChats, selectedUser]);
+        if (requestId !== chatRequestId.current) return;
+        setMessages((previousMessages) =>
+          append
+            ? [...data.messages, ...(previousMessages ?? [])]
+            : data.messages,
+        );
+        setUser(data.user);
+        setMessagePage(data.page);
+        setTotalMessagePages(data.totalPages);
+        await fetchChats(); //Refresh sidebar chats Because after opening a chat, things like:last message,unread count,latest chat may have changed.
+      } catch (error) {
+        console.log(error);
+        toast.error("Failed to load messages");
+      }
+    },
+    [fetchChats, selectedUser],
+  );
 
   const loadOlderMessages = () => {
     if (messagePage < totalMessagePages) {
       void fetchChat(messagePage + 1, true);
     }
+  };
+
+  //
+  const moveChatToTop = (
+    chatId: string,
+    newMessage: any,
+    updatedUnseenCount = true,
+  ) => {
+    setChats((prev) => {
+      if (!prev) return null;
+
+      const updatedChats = [...prev];
+
+      const chatIndex = updatedChats.findIndex(
+        (chat) => chat.chat._id === chatId,
+      );
+
+      if (chatIndex !== -1) {
+        const [moveChat] = updatedChats.splice(chatIndex, 1);
+
+        const updatedChat = {
+          ...moveChat,
+          chat: {
+            ...moveChat.chat,
+            latestMessage: {
+              text: newMessage.text,
+              sender: newMessage.sender,
+            },
+            updatedAt: new Date().toString(),
+
+            unseenCount:
+              updatedUnseenCount && newMessage.sender !== loggedInUser?._id
+                ? (moveChat.chat.unseenCount || 0) + 1
+                : moveChat.chat.unseenCount || 0,
+          },
+        };
+
+        updatedChats.unshift(updatedChat);
+      }
+
+      return updatedChats;
+    });
+  };
+
+  //
+  const resetUnseenCount = (chatId: string) => {
+    setChats((prev) => {
+      if (!prev) return null;
+
+      return prev.map((chat) => {
+        if (chat.chat._id === chatId) {
+          return {
+            ...chat,
+            chat: {
+              ...chat.chat,
+              unseenCount: 0,
+            },
+          };
+        }
+
+        return chat;
+      });
+    });
   };
 
   //This runs when you select a user who doesn't already have a chat.
@@ -198,6 +266,17 @@ const ChatApp = () => {
 
       setMessage(""); //Clear input
       await fetchChats(); //Refresh chats
+
+      const displayText=imageFile?"image":message;
+
+      moveChatToTop({
+        selectedUser!,
+        {
+          text:displayText,
+          sender:data.sender,
+        },
+        false
+      })
       return true;
     } catch (error: unknown) {
       const errorMessage = axios.isAxiosError<{ message?: string }>(error)
@@ -257,21 +336,28 @@ const ChatApp = () => {
       if (incomingMessage.chatId === selectedUser) {
         setMessages((previousMessages) => {
           const currentMessages = previousMessages ?? [];
-          return currentMessages.some((item) => item._id === incomingMessage._id)
+          return currentMessages.some(
+            (item) => item._id === incomingMessage._id,
+          )
             ? currentMessages
             : [...currentMessages, incomingMessage];
         });
+
+        moveChatToTop(Message.chatId, message, false);
+      }else{
+         moveChatToTop(Message.chatId, message, true);
       }
     };
 
     const onMessagesSeen = (data: { chatId: string; seenAt: string }) => {
       if (data.chatId === selectedUser) {
-        setMessages((previousMessages) =>
-          previousMessages?.map((item) =>
-            item.sender === loggedInUser?._id
-              ? { ...item, seen: true, seenAt: data.seenAt }
-              : item,
-          ) ?? null,
+        setMessages(
+          (previousMessages) =>
+            previousMessages?.map((item) =>
+              item.sender === loggedInUser?._id
+                ? { ...item, seen: true, seenAt: data.seenAt }
+                : item,
+            ) ?? null,
         );
       }
     };
@@ -294,6 +380,8 @@ const ChatApp = () => {
       fetchChat();
       setIsTyping(false);
       setMessagePage(1);
+
+      resetUnseenCount(selectedUser);
 
       socket?.emit("joinChat", selectedUser);
 
@@ -341,11 +429,11 @@ const ChatApp = () => {
         />
 
         <ChatMessages
-        selectedUser={selectedUser}
-        messages={messages}
-        loggedInUser={loggedInUser}
-        hasOlderMessages={messagePage < totalMessagePages}
-        loadOlderMessages={loadOlderMessages}
+          selectedUser={selectedUser}
+          messages={messages}
+          loggedInUser={loggedInUser}
+          hasOlderMessages={messagePage < totalMessagePages}
+          loadOlderMessages={loadOlderMessages}
         />
 
         <MessageInput
