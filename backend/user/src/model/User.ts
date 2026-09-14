@@ -13,11 +13,16 @@ const schema: Schema<IUser> = new Schema( //Schema<IUser> connects the Mongoose 
     name: {
       type: String,
       required: true,
+      trim: true,
+      minlength: 2,
+      maxlength: 50,
     },
     email: {
       type: String,
       required: true,
       unique: true,//MongoDB should not allow duplicate email values.
+      trim: true,
+      lowercase: true,
     },
   },
   {

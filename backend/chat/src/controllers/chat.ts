@@ -4,7 +4,7 @@ import { Chat } from "../models/chat.js";
 import axios from "axios";
 import { Messages } from "../models/messages.js";
 import mongoose from "mongoose";
-import { getRecieverSocketId, io } from "../config/socket.js";
+import { io, isUserInChatRoom } from "../config/socket.js";
 
 export const createNewChat = TryCatch(
   async (req: AuthenticatedRequest, res) => {
@@ -194,7 +194,8 @@ export const getAllChats = TryCatch(async (req: AuthenticatedRequest, res) => {
 
 export const sendMessage = TryCatch(async (req: AuthenticatedRequest, res) => {
   const senderId = req.user?._id;
-  const { chatId, text } = req.body;
+  const { chatId } = req.body;
+  const text = typeof req.body.text === "string" ? req.body.text.trim() : "";
   const imageFile = req.file;
 
   if (!senderId) {
@@ -250,14 +251,7 @@ export const sendMessage = TryCatch(async (req: AuthenticatedRequest, res) => {
   }
 
   // socket setup
-  const receiverSocketId = getRecieverSocketId(otherUserId.toString());
-  let isReceiverInChatRoom = false;
-  if (receiverSocketId) {
-    const receiverSocket = io.sockets.sockets.get(receiverSocketId);
-    if (receiverSocket && receiverSocket.rooms.has(chatId)) {
-      isReceiverInChatRoom = true;
-    }
-  }
+  const isReceiverInChatRoom = isUserInChatRoom(otherUserId.toString(), chatId);
 
   let messageData: any = {
     chatId: chatId,
@@ -295,22 +289,17 @@ export const sendMessage = TryCatch(async (req: AuthenticatedRequest, res) => {
     { new: true },
   );
 
-  // emit to sockets
+  // Every user has a private room named after their user ID. This reaches all
+  // of their tabs without duplicate room/socket emissions.
   io.to(chatId).emit("newMessage", savedMessage);
-  if (receiverSocketId) {
-    io.to(receiverSocketId).emit("newMessage", savedMessage);
-  }
+  io.to(otherUserId.toString()).emit("newMessage", savedMessage);
+  io.to(senderId.toString()).emit("newMessage", savedMessage);
 
-  const senderSocketId = getRecieverSocketId(senderId.toString());
-  if (senderSocketId) {
-    io.to(senderSocketId).emit("newMessage", savedMessage);
-  }
-
-  if (isReceiverInChatRoom && senderSocketId) {
-    io.to(senderSocketId).emit("messagesSeen", {
+  if (isReceiverInChatRoom) {
+    io.to(senderId.toString()).emit("messagesSeen", {
       chatId: chatId,
-      seenBy: otherUserId,
-      messageIds: [savedMessage._id],
+      seenAt: savedMessage.seenAt?.toISOString(),
+      messageIds: [savedMessage._id.toString()],
     });
   }
 
@@ -398,7 +387,7 @@ export const getMessagesByChat = TryCatch(
     const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
     const skip = (page - 1) * limit;
     const [messages, total] = await Promise.all([
-      Messages.find({ chatId }).sort({ createdAt: 1 }).skip(skip).limit(limit),
+      Messages.find({ chatId }).sort({ createdAt: -1 }).skip(skip).limit(limit),
       Messages.countDocuments({ chatId }),
     ]);
 
@@ -413,10 +402,13 @@ export const getMessagesByChat = TryCatch(
       return;
     }
 
-    io.to(otherUserId.toString()).emit("messagesSeen", {
-      chatId,
-      seenAt: seenAt.toISOString(),
-    });
+    if (messagesToMarkSeen.length > 0) {
+      io.to(otherUserId.toString()).emit("messagesSeen", {
+        chatId,
+        seenAt: seenAt.toISOString(),
+        messageIds: messagesToMarkSeen.map((message) => message._id.toString()),
+      });
+    }
 
     //Get other user's details from User Service
     let data;
@@ -428,7 +420,7 @@ export const getMessagesByChat = TryCatch(
     } catch (error) {
       console.log(error);
       res.json({
-        messages,
+        messages: messages.reverse(),
         page,
         limit,
         total,
@@ -441,21 +433,9 @@ export const getMessagesByChat = TryCatch(
       return;
     }
 
-    // socket work
-    if (messagesToMarkSeen.length > 0) {
-      const otherUserSocketId = getRecieverSocketId(otherUserId.toString());
-      if (otherUserSocketId) {
-        io.to(otherUserSocketId).emit("messagesSeen", {
-          chatId: chatId,
-          seenBy: userId,
-          messageIds: messagesToMarkSeen.map((msg) => msg._id),
-        });
-      }
-    }
-
     //Send messages + user details
     res.json({
-      messages,
+      messages: messages.reverse(),
       page,
       limit,
       total,

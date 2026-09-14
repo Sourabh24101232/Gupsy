@@ -40,13 +40,15 @@ export const SocketProvider = ({ children }: ProviderProps) => {
       },
     });
 
-    setSocket(newSocket);
+    newSocket.on("connect", () => setSocket(newSocket));
     newSocket.on("getOnlineUser", (users: string[]) => {
       setOnlineUsers(users);
     });
 
     return () => {
       newSocket.disconnect();
+      setSocket(null);
+      setOnlineUsers([]);
     };
   }, [user?._id]);
 

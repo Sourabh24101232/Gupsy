@@ -62,7 +62,8 @@ const VerifyOtp = () => {
       //Save authentication token.Your backend gives the frontend a token after successful verification.The frontend stores that token in a cookie.
       Cookies.set("token", data.token, {
         expires: 15, //The cookie expires after 15 days.
-        secure: false, //The cookie can be sent over non-HTTPS connections.
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
         path: "/", //The cookie is available throughout the website.
       });
 

@@ -13,16 +13,16 @@ import Loading from "@/components/Loading";
 const ProfilePage = () => {
   const { user, isAuth, loading, setUser } = useAppData();
   const [isEdit, setIsEdit] = useState(false);
-  const [name, setName] = useState<string | undefined>("");
+  const [name, setName] = useState("");
 
   const router = useRouter();
 
   const editHandler = () => {
     setIsEdit(!isEdit);
-    setName(user?.name);
+    setName(user?.name ?? "");
   };
 
-  const submitHandler = async (e: any) => {
+  const submitHandler = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     const token = Cookies.get("token");
@@ -40,7 +40,8 @@ const ProfilePage = () => {
 
       Cookies.set("token", data.token, {
         expires: 15,
-        secure: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
         path: "/",
       });
 
@@ -48,8 +49,11 @@ const ProfilePage = () => {
 
       setUser(data.user);
       setIsEdit(false);
-    } catch (error: any) {
-      toast.error(error.response.data.message);
+    } catch (error: unknown) {
+      const message = axios.isAxiosError<{ message?: string }>(error)
+        ? error.response?.data?.message ?? "Unable to update profile"
+        : "Unable to update profile";
+      toast.error(message);
     }
   };
 

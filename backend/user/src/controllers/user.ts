@@ -23,10 +23,11 @@ export const loginUser = TryCatch(async (req, res) => {
 
   //rateLimitKey Creates a unique Redis key for this user's OTP requests.This allows Redis to track the OTP request limit separately for each email.
   const rateLimitKey = `otp:ratelimit:${email}`;
-  //Checks Redis to see whether this email has recently requested an OTP.
-  const rateLimit = await redisClient.get(rateLimitKey);
-  //If the key exists, rateLimit contains its value.means, the user requested an OTP recently.
-  if (rateLimit) {
+  const rateLimitSet = await redisClient.set(rateLimitKey, "true", {
+    NX: true,
+    EX: 60,
+  });
+  if (!rateLimitSet) {
     return res.status(429).json({
       message: "Too many requests. Please wait before requesting new otp",
     });
@@ -52,12 +53,12 @@ export const loginUser = TryCatch(async (req, res) => {
     body: `Your OTP is ${otp}. It is valid for 5 minutes`,
   };
 
-  //Sends the message to the RabbitMQ queue:send-otp
-  await publishToQueue("send-otp", message);
-  //Set rate limit
-  await redisClient.set(rateLimitKey, "true", {
-    EX: 60,
-  });
+  try {
+    await publishToQueue("send-otp", message);
+  } catch (error) {
+    await Promise.all([redisClient.del(otpKey), redisClient.del(rateLimitKey)]);
+    throw error;
+  }
 
   return res.status(200).json({
     success: true,
@@ -82,19 +83,28 @@ export const verifyUser = TryCatch(async (req, res) => {
 
   // Create the same Redis key used while storing the OTP
   const otpKey = `otp:${email}`;
+  const attemptsKey = `otp:attempts:${email}`;
 
-  // Get the OTP stored in Redis
-  const storedOtp = await redisClient.get(otpKey);
-  // Check if OTP doesn't exist or doesn't match
-  if (!storedOtp || storedOtp !== enteredOtp) {
+  const attempts = await redisClient.incr(attemptsKey);
+  if (attempts === 1) await redisClient.expire(attemptsKey, 300);
+  if (attempts > 5) {
+    await Promise.all([redisClient.del(otpKey), redisClient.del(attemptsKey)]);
+    res.status(429).json({ message: "Too many OTP attempts. Request a new code." });
+    return;
+  }
+
+  // Atomically compare and consume the OTP so concurrent requests cannot reuse it.
+  const otpConsumed = await redisClient.eval(
+    "if redis.call('GET', KEYS[1]) == ARGV[1] then redis.call('DEL', KEYS[1]); return 1 end; return 0",
+    { keys: [otpKey], arguments: [enteredOtp] },
+  );
+  if (otpConsumed !== 1) {
     res.status(400).json({
       message: "Invalid or expired OTP",
     });
     return;
   }
-
-  // OTP is correct → delete it so it cannot be reused
-  await redisClient.del(otpKey);
+  await redisClient.del(attemptsKey);
 
   // Find existing user
   let user = await User.findOne({ email });
@@ -135,6 +145,11 @@ export const myProfile = TryCatch(async (req: AuthenticatedRequest, res) => {
 
 //update name of user
 export const updateName = TryCatch(async (req: AuthenticatedRequest, res) => {
+  const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
+  if (name.length < 2 || name.length > 50) {
+    res.status(400).json({ message: "Name must be between 2 and 50 characters" });
+    return;
+  }
   const user = await User.findById(req.user?._id);
   if (!user) {
     res.status(404).json({
@@ -144,7 +159,7 @@ export const updateName = TryCatch(async (req: AuthenticatedRequest, res) => {
   }
 
   //update and save
-  user.name = req.body.name;
+  user.name = name;
   await user.save();
 
   const token = generateToken(user);
@@ -158,14 +173,19 @@ export const updateName = TryCatch(async (req: AuthenticatedRequest, res) => {
 
 //get all users
 export const getAllUsers = TryCatch(async (req: AuthenticatedRequest, res) => {
+  const currentUserId = req.user?._id;
+  if (!currentUserId) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
   // const users = await User.find();
   const page = Math.max(Number(req.query.page) || 1, 1);
   const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
   const skip = (page - 1) * limit;
 
   const [users, total] = await Promise.all([
-    User.find().skip(skip).limit(limit),
-    User.countDocuments(),
+    User.find({ _id: { $ne: currentUserId } }).select("_id name").skip(skip).limit(limit),
+    User.countDocuments({ _id: { $ne: currentUserId } }),
   ]);
 
   // res.json(users);
@@ -193,7 +213,7 @@ export const getAUser = TryCatch(async (req, res) => {
     return;
   }
 
-  const user = await User.findById(id);
+  const user = await User.findById(id).select("_id name");
 
   if (!user) {
     res.status(404).json({

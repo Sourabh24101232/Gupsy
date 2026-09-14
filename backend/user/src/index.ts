@@ -25,29 +25,34 @@ for (const key of requiredEnv) {
   }
 }
 
-connectDb();
-void connectRabbitMQ();
-
 //redis connection
 export const redisClient = createClient({
   url: process.env.REDIS_URL!,
 });
-redisClient
-  .connect()
-  .then(() => console.log("Connected to redis"))
-  .catch(console.error);
 
 //Express → A Node.js web framework used to build servers, APIs, routes, and middleware easily.
 const app = express(); //create server
 app.use(express.json());//express.json() parses the JSON string received in the HTTP request into a JavaScript object so you can use it through req.body.
-app.use(cors());//Allows your frontend and backend (different origins) to communicate with each other.
+app.use(cors({ origin: process.env.FRONTEND_ORIGIN ?? "http://localhost:3000" }));
 
 //app.use() → Mounts userRoutes at a specific URL path.
 // /api/v1 → base path and userRoutes → handles the routes after that
 app.use("/api/v1", userRoutes);
 
 //run server
-const port = process.env.PORT;
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+const start = async () => {
+  await connectDb();
+  await redisClient.connect();
+  console.log("Connected to redis");
+  void connectRabbitMQ();
+
+  const port = process.env.PORT;
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+  });
+};
+
+void start().catch((error: unknown) => {
+  console.error("Failed to start user service", error);
+  process.exit(1);
 });

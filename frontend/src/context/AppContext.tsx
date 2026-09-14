@@ -1,12 +1,12 @@
 "use client";
 import React from "react";
-import { createContext, useEffect, useState, useContext } from "react";
+import { createContext, useCallback, useEffect, useState, useContext } from "react";
 import Cookies from "js-cookie";
 import axios from "axios";
 import toast, { Toaster } from "react-hot-toast";
 
-export const user_service = "http://localhost:5000";
-export const chat_service = "http://localhost:5002";
+export const user_service = process.env.NEXT_PUBLIC_USER_SERVICE ?? "http://localhost:5000";
+export const chat_service = process.env.NEXT_PUBLIC_CHAT_SERVICE ?? "http://localhost:5002";
 
 export interface User {
   _id: string;
@@ -89,7 +89,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const [chats, setChats] = useState<Chats[] | null>(null);
 
-  async function fetchChats() {
+  const fetchChats = useCallback(async () => {
     const token = Cookies.get("token");
     if (!token) return;
 
@@ -104,10 +104,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     } catch (error) {
       console.log(error);
     }
-  }
+  }, []);
 
   const [users, setUsers] = useState<User[] | null>(null);
-  async function fetchUsers() {
+  const fetchUsers = useCallback(async () => {
     const token = Cookies.get("token");
     if (!token) {
       return;
@@ -124,7 +124,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     } catch (error) {
       console.log(error);
     }
-  }
+  }, []);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -132,7 +132,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       void fetchChats();
       void fetchUsers();
     });
-  }, []);
+  }, [fetchChats, fetchUsers]);
 
   return (
     <AppContext.Provider

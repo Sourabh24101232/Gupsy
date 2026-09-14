@@ -23,16 +23,22 @@ for (const key of requiredEnv) {
   }
 }
 
-connectDb();
-
 app.use(express.json());
 
 //Without CORS, the browser can block:axios.get("https://localhost:5000/api/v1/me");
-app.use(cors());//This tells the browser:"Requests from other origins are allowed."
+app.use(cors({ origin: process.env.FRONTEND_ORIGIN ?? "http://localhost:3000" }));
 app.use("/api/v1/", chatRoutes);
 
 //run server
-const port = process.env.PORT;
-server.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+const start = async () => {
+  await connectDb();
+  const port = process.env.PORT;
+  server.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+  });
+};
+
+void start().catch((error: unknown) => {
+  console.error("Failed to start chat service", error);
+  process.exit(1);
 });

@@ -4,10 +4,11 @@ const TryCatch = (handler: RequestHandler): RequestHandler => { //Handler : "Giv
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       await handler(req, res, next);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      console.error(error);
       res.status(500).json({
         success: false,
-        message: error.message,
+        message: "Internal server error",
       });
     }
   };
